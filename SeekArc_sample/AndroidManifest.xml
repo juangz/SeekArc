@@ -23,13 +23,7 @@
   CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.triggertrap.sample"
-    android:versionCode="1"
-    android:versionName="1.0" >
-
-    <uses-sdk
-        android:minSdkVersion="8"
-        android:targetSdkVersion="17" />
+    package="com.triggertrap.sample" >
 
     <application
         android:allowBackup="true"

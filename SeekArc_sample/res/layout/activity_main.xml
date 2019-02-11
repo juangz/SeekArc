@@ -48,7 +48,8 @@
             seekarc:rotation="180"
             seekarc:startAngle="30"
             seekarc:sweepAngle="300"
-            seekarc:touchInside="true" />
+            seekarc:touchInside="true"
+            seekarc:thumb="@drawable/ic_thumb"/>
     </FrameLayout>
 
 </RelativeLayout>

@@ -26,14 +26,21 @@ package com.triggertrap.seekarc;
 import android.content.Context;
 import android.content.res.Resources;
 import android.content.res.TypedArray;
+import android.graphics.Bitmap;
 import android.graphics.Canvas;
+import android.graphics.Matrix;
 import android.graphics.Paint;
+import android.graphics.Rect;
 import android.graphics.RectF;
+import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
+import android.graphics.drawable.LayerDrawable;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.animation.Animation;
+import android.view.animation.RotateAnimation;
 
 /**
  * 
@@ -55,7 +62,7 @@ public class SeekArc extends View {
 	/**
 	 * The Drawable for the seek arc thumbnail
 	 */
-	private Drawable mThumb;
+	private Bitmap mThumb;
 	
 	/**
 	 * The Maximum value that this SeekArc can be set to
@@ -189,9 +196,8 @@ public class SeekArc extends View {
 		// Defaults, may need to link this into theme settings
 		int arcColor = res.getColor(R.color.progress_gray);
 		int progressColor = res.getColor(R.color.default_blue_light);
-		int thumbHalfheight = 0;
-		int thumbHalfWidth = 0;
-		mThumb = res.getDrawable(R.drawable.seek_arc_control_selector);
+
+		mThumb = drawableToBitmap(res.getDrawable(R.drawable.seek_arc_control_selector));
 		// Convert progress width to pixels for current density
 		mProgressWidth = (int) (mProgressWidth * density);
 
@@ -203,15 +209,8 @@ public class SeekArc extends View {
 
 			Drawable thumb = a.getDrawable(R.styleable.SeekArc_thumb);
 			if (thumb != null) {
-				mThumb = thumb;
+                mThumb = drawableToBitmap(thumb);
 			}
-
-			
-			
-			thumbHalfheight = (int) mThumb.getIntrinsicHeight() / 2;
-			thumbHalfWidth = (int) mThumb.getIntrinsicWidth() / 2;
-			mThumb.setBounds(-thumbHalfWidth, -thumbHalfheight, thumbHalfWidth,
-					thumbHalfheight);
 
 			mMax = a.getInteger(R.styleable.SeekArc_max, mMax);
 			mProgress = a.getInteger(R.styleable.SeekArc_progress, mProgress);
@@ -280,13 +279,56 @@ public class SeekArc extends View {
 		canvas.drawArc(mArcRect, arcStart, mProgressSweep, false,
 				mProgressPaint);
 
-		if(mEnabled) {
-			// Draw the thumb nail
-			canvas.translate(mTranslateX - mThumbXPos, mTranslateY - mThumbYPos);
-			mThumb.draw(canvas);
-		}
+		// Draw the thumb nail
+        int thumbAngle = (int) (mStartAngle + mProgressSweep + mRotation + 180);
+        Bitmap bitmap = rotateBitmap(mThumb , thumbAngle);
+        int offsetY = bitmap.getHeight() / 2;
+        int offsetX = bitmap.getWidth() / 2;
+        canvas.drawBitmap(bitmap, mTranslateX - mThumbXPos - offsetX, mTranslateY - mThumbYPos - offsetY, null);
 	}
 
+	public static Bitmap drawableToBitmap (Drawable drawable) {
+		Bitmap bitmap = null;
+		if (drawable instanceof BitmapDrawable) {
+			BitmapDrawable bitmapDrawable = (BitmapDrawable) drawable;
+			if(bitmapDrawable.getBitmap() != null) {
+				return bitmapDrawable.getBitmap();
+			}
+		}
+
+		if(drawable.getIntrinsicWidth() <= 0 || drawable.getIntrinsicHeight() <= 0) {
+			bitmap = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888); // Single color bitmap will be created of 1x1 pixel
+		} else {
+			bitmap = Bitmap.createBitmap(drawable.getIntrinsicWidth(), drawable.getIntrinsicHeight(), Bitmap.Config.ARGB_8888);
+		}
+		return bitmap;
+	}
+
+    private Bitmap rotateBitmap(Bitmap bitmap, int rotationAngleDegree){
+
+        int w = bitmap.getWidth();
+        int h = bitmap.getHeight();
+
+        int newW=w, newH=h;
+        if (rotationAngleDegree==90 || rotationAngleDegree==270){
+            newW = h;
+            newH = w;
+        }
+        Bitmap rotatedBitmap = Bitmap.createBitmap(newW,newH, bitmap.getConfig());
+        Canvas canvas = new Canvas(rotatedBitmap);
+
+        Rect rect = new Rect(0,0,newW, newH);
+        Matrix matrix = new Matrix();
+        float px = rect.exactCenterX();
+        float py = rect.exactCenterY();
+        matrix.postTranslate(-bitmap.getWidth()/2, -bitmap.getHeight()/2);
+        matrix.postRotate(rotationAngleDegree);
+        matrix.postTranslate(px, py);
+        canvas.drawBitmap(bitmap, matrix, new Paint( Paint.ANTI_ALIAS_FLAG | Paint.DITHER_FLAG | Paint.FILTER_BITMAP_FLAG ));
+        matrix.reset();
+
+        return rotatedBitmap;
+    }
 
 	@Override
 	protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
@@ -344,16 +386,6 @@ public class SeekArc extends View {
 			return true;
 		}
 		return false;
-	}
-
-	@Override
-	protected void drawableStateChanged() {
-		super.drawableStateChanged();
-		if (mThumb != null && mThumb.isStateful()) {
-			int[] state = getDrawableState();
-			mThumb.setState(state);
-		}
-		invalidate();
 	}
 
 	private void onStartTrackingTouch() {
@@ -429,7 +461,7 @@ public class SeekArc extends View {
 		mThumbXPos = (int) (mArcRadius * Math.cos(Math.toRadians(thumbAngle)));
 		mThumbYPos = (int) (mArcRadius * Math.sin(Math.toRadians(thumbAngle)));
 	}
-	
+
 	private void updateProgress(int progress, boolean fromUser) {
 
 		if (progress == INVALID_PROGRESS_VALUE) {
@@ -451,6 +483,7 @@ public class SeekArc extends View {
 
 		invalidate();
 	}
+
 
 	/**
 	 * Sets a listener to receive notifications of changes to the SeekArc's
@@ -518,8 +551,8 @@ public class SeekArc extends View {
 		updateThumbPosition();
 	}
 	
-	public void setRoundedEdges(boolean isEnabled) {
-		mRoundedEdges = isEnabled;
+	public void setRoundedEdges(boolean roundedEdges) {
+		mRoundedEdges = roundedEdges;
 		if (mRoundedEdges) {
 			mArcPaint.setStrokeCap(Paint.Cap.ROUND);
 			mProgressPaint.setStrokeCap(Paint.Cap.ROUND);
@@ -529,10 +562,10 @@ public class SeekArc extends View {
 		}
 	}
 	
-	public void setTouchInSide(boolean isEnabled) {
-		int thumbHalfheight = (int) mThumb.getIntrinsicHeight() / 2;
-		int thumbHalfWidth = (int) mThumb.getIntrinsicWidth() / 2;
-		mTouchInside = isEnabled;
+	public void setTouchInSide(boolean touchInSide) {
+		int thumbHalfheight = (int) mThumb.getHeight() / 2;
+		int thumbHalfWidth = (int) mThumb.getWidth() / 2;
+		mTouchInside = touchInSide;
 		if (mTouchInside) {
 			mTouchIgnoreRadius = (float) mArcRadius / 4;
 		} else {
